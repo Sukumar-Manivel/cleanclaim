@@ -1,0 +1,144 @@
+/* CleanClaim — the look of settlement safety paper: pale security green, banknote ink,
+   a fine guilloche on the one element that matters (the check). Everything else stays quiet. */
+@import url('https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;0,800;1,400&display=swap');
+
+:root {
+  --paper: #e7eee8;
+  --sheet: #f6f9f5;
+  --ink: #17243b;
+  --ink-soft: #4a5a72;
+  --guilloche: #9db8a8;
+  --rule: #c9d7cd;
+  --paid: #1e6b47;
+  --hold: #a85b12;
+  --reject: #9b2c3a;
+  --focus: #2f5fd0;
+  font-family: 'Public Sans', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  color: var(--ink);
+  background: var(--paper);
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-size: 15px; line-height: 1.5; }
+a { color: var(--ink); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+button { font: inherit; cursor: pointer; }
+h1, h2, h3 { line-height: 1.2; margin: 0; }
+
+.topbar {
+  display: flex; align-items: baseline; gap: 1.25rem; flex-wrap: wrap;
+  padding: 1rem clamp(1rem, 3vw, 2.5rem); border-bottom: 1px solid var(--rule);
+}
+.brand { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.01em; }
+.case { color: var(--ink-soft); }
+.case strong { color: var(--ink); font-weight: 600; }
+.modes { margin-left: auto; display: flex; gap: .5rem; font-size: .85rem; color: var(--ink-soft); }
+.modes span { padding: .15rem .55rem; border: 1px solid var(--rule); border-radius: 999px; background: var(--sheet); }
+
+main { padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 3rem; max-width: 1440px; margin: 0 auto; }
+
+/* ---- The check -------------------------------------------------------- */
+.check {
+  position: relative; overflow: hidden;
+  background: var(--sheet); border: 1px solid var(--guilloche); border-radius: 6px;
+  padding: 1.5rem 1.75rem 1.25rem;
+  display: grid; grid-template-columns: 1fr auto; gap: .75rem 2rem; align-items: end;
+}
+.check::before { /* guilloche */
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .55;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='60'%3E%3Cg fill='none' stroke='%239db8a8' stroke-width='.6'%3E%3Cpath d='M0 30 Q30 0 60 30 T120 30 T180 30 T240 30'/%3E%3Cpath d='M0 34 Q30 6 60 34 T120 34 T180 34 T240 34'/%3E%3Cpath d='M0 26 Q30 56 60 26 T120 26 T180 26 T240 26'/%3E%3C/g%3E%3C/svg%3E");
+  mask-image: linear-gradient(90deg, #000 0%, transparent 70%);
+}
+.check > * { position: relative; }
+.payto { font-size: .95rem; color: var(--ink-soft); }
+.payto b { color: var(--ink); font-weight: 600; }
+.amount { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.amount .was { font-size: 1.5rem; color: var(--ink-soft); text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: var(--reject); }
+.amount .now { font-size: clamp(3rem, 7vw, 5.25rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--paid); }
+.amount .per { font-size: 1rem; color: var(--ink-soft); }
+.memo { grid-column: 1 / -1; display: flex; gap: 2rem; flex-wrap: wrap; border-top: 1px dashed var(--guilloche); padding-top: .75rem; font-size: .9rem; color: var(--ink-soft); }
+.memo b { color: var(--ink); font-weight: 600; }
+.signature { text-align: right; font-size: .85rem; color: var(--ink-soft); }
+.signature .line { display: block; width: 220px; border-bottom: 1px solid var(--ink); margin: 0 0 .25rem auto; height: 2.25rem; font-style: italic; color: var(--ink); font-size: 1.05rem; }
+
+/* ---- Tabs ------------------------------------------------------------- */
+.tabs { display: flex; gap: 1.5rem; margin: 2rem 0 1rem; border-bottom: 1px solid var(--rule); }
+.tabs button { background: none; border: 0; padding: .6rem 0; color: var(--ink-soft); border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.tabs button[aria-selected='true'] { color: var(--ink); font-weight: 600; border-color: var(--ink); }
+.tabs .count { color: var(--ink-soft); font-weight: 400; }
+[role='tabpanel'][hidden] { display: none; }
+
+/* ---- Review queue ----------------------------------------------------- */
+.queue { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 1.25rem; }
+.filters { display: flex; gap: .5rem; margin-bottom: .75rem; flex-wrap: wrap; align-items: center; }
+.chip { border: 1px solid var(--rule); background: var(--sheet); border-radius: 999px; padding: .25rem .8rem; font-size: .88rem; color: var(--ink); }
+.chip[aria-pressed='true'] { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+#grid { height: 560px; }
+.status { display: inline-block; padding: 0 .5rem; border-radius: 3px; font-size: .82rem; font-weight: 600; line-height: 1.6; }
+.status.clear { color: var(--paid); background: #d6e8dc; }
+.status.review { color: var(--hold); background: #f3e3cf; }
+.status.held { color: var(--reject); background: #f2d9dc; }
+.status.approve { color: var(--paid); background: #d6e8dc; }
+.status.reject { color: var(--reject); background: #f2d9dc; }
+
+.detail { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 1.25rem; align-self: start; position: sticky; top: 1rem; }
+.detail h3 { font-size: 1.15rem; }
+.detail .who { color: var(--ink-soft); font-size: .9rem; margin: .2rem 0 1rem; }
+.story { font-style: italic; border-left: 3px solid var(--guilloche); padding-left: .75rem; margin: 0 0 1rem; }
+.reasons { margin: 0 0 1rem; padding-left: 1.1rem; }
+.reasons li { margin-bottom: .4rem; }
+.opinion { border: 1px solid var(--rule); border-radius: 4px; padding: .75rem; margin-bottom: 1rem; font-size: .92rem; background: #fff; }
+.opinion b { font-weight: 600; }
+.actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.btn { border: 1px solid var(--ink); background: var(--sheet); color: var(--ink); border-radius: 4px; padding: .5rem .9rem; font-weight: 600; }
+.btn.primary { background: var(--ink); color: var(--sheet); }
+.btn.good { background: var(--paid); border-color: var(--paid); color: #fff; }
+.btn.bad { color: var(--reject); border-color: var(--reject); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.empty { color: var(--ink-soft); }
+
+/* ---- Payout ----------------------------------------------------------- */
+.payout { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 2rem; }
+.payout p { max-width: 62ch; }
+.confirm { display: flex; gap: .5rem; margin: 1rem 0; flex-wrap: wrap; }
+.confirm input { font: inherit; padding: .5rem .7rem; border: 1px solid var(--ink-soft); border-radius: 4px; min-width: 200px; background: #fff; }
+table.items { width: 100%; border-collapse: collapse; font-size: .92rem; }
+table.items th { text-align: left; font-weight: 600; color: var(--ink-soft); border-bottom: 1px solid var(--rule); padding: .4rem .5rem; }
+table.items td { border-bottom: 1px solid var(--rule); padding: .45rem .5rem; }
+.msg { padding: .6rem .8rem; border-radius: 4px; margin: .75rem 0; }
+.msg.error { background: #f2d9dc; color: var(--reject); }
+.msg.ok { background: #d6e8dc; color: var(--paid); }
+
+/* ---- Accuracy --------------------------------------------------------- */
+.scores { display: flex; gap: 3rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.scores div { min-width: 140px; }
+.scores .v { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; }
+.scores .k { color: var(--ink-soft); }
+.matrix { border-collapse: collapse; }
+.matrix th, .matrix td { padding: .45rem .9rem; border: 1px solid var(--rule); text-align: right; }
+.matrix th:first-child, .matrix td:first-child { text-align: left; }
+.note { color: var(--ink-soft); max-width: 70ch; }
+
+.activity { list-style: none; padding: 0; margin: 0; max-width: 820px; }
+.activity li { display: grid; grid-template-columns: 7rem 1fr; gap: 1rem; padding: .5rem 0; border-bottom: 1px solid var(--rule); }
+.activity time { color: var(--ink-soft); }
+
+/* ---- Claimant page ---------------------------------------------------- */
+.claimant { max-width: 640px; margin: 3rem auto; padding: 0 1.25rem; }
+.claimant h1 { font-size: 2rem; letter-spacing: -0.02em; margin-bottom: .5rem; }
+.claimant .letter { white-space: pre-line; background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 1.1rem 1.25rem; margin: 1.25rem 0; }
+.paypal-btn { background: #ffc439; color: #111a36; border: 0; border-radius: 999px; padding: .75rem 1.5rem; font-weight: 800; font-size: 1rem; }
+.lookup { display: flex; gap: .5rem; margin-top: 1.5rem; }
+.lookup input { font: inherit; padding: .6rem .8rem; border: 1px solid var(--ink-soft); border-radius: 4px; flex: 1; }
+
+@media (max-width: 960px) {
+  .queue, .payout { grid-template-columns: 1fr; }
+  .detail { position: static; }
+  .check { grid-template-columns: 1fr; }
+  .signature { text-align: left; }
+  .signature .line { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.tabs { overflow-x: auto; white-space: nowrap; }
+@media (max-width: 600px) { #aiBand { margin-left: 0 !important; width: 100%; } }

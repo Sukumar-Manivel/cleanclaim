@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Check your settlement claim</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar"><span class="brand">SnapGlow Settlement</span><span class="case">Claim status</span></header>
+  <main class="claimant" id="root">
+    <h1>Check your claim</h1>
+    <p>Enter the claim ID from your confirmation email.</p>
+    <form class="lookup" id="lookup"><input id="cid" placeholder="CL-00001" aria-label="Claim ID" /><button class="btn primary">Check claim</button></form>
+  </main>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const money = (n) => '$' + Number(n).toFixed(2);
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    document.getElementById('lookup').addEventListener('submit', (e) => { e.preventDefault(); location.search = '?id=' + encodeURIComponent(document.getElementById('cid').value.trim()); });
+    async function show(id) {
+      const r = await fetch('/api/claimant/' + encodeURIComponent(id)); const c = await r.json();
+      const root = document.getElementById('root');
+      if (!r.ok) { root.insertAdjacentHTML('beforeend', `<div class="msg error">${esc(c.error)}</div>`); return; }
+      const approved = c.status === 'clear' || c.decision === 'approve';
+      const paid = c.payout && c.payout.status === 'SUCCESS';
+      let body;
+      if (paid) body = `<h1>You've been paid, ${esc(c.firstName)}</h1><p>${money(c.payout.value)} was sent to your PayPal account (${esc(c.payout.receiver)}).</p>`;
+      else if (approved) body = `<h1>Your claim is approved, ${esc(c.firstName)}</h1><p>You'll receive about ${money(c.share)} by PayPal when the next payment batch goes out.${c.verified ? ` Payment will go to the PayPal account you confirmed (${esc(c.verified.email)}).` : ''}</p>`;
+      else if (c.decision === 'reject') body = `<h1>Your claim was not approved</h1><p>A settlement administrator reviewed it. If you think this is wrong, reply to your claim email to ask for another review.</p>`;
+      else body = `<h1>Your claim is on hold, ${esc(c.firstName)}</h1>
+        <div class="letter">${esc(c.letter && c.letter.text)}</div>
+        <p>If this claim is yours, confirm it with your PayPal account. We only check that the account is real and send your payment there. We never see your password.</p>
+        <p><a class="paypal-btn" href="/auth/paypal/start?claim=${encodeURIComponent(c.id)}" style="display:inline-block;text-decoration:none">Confirm with PayPal</a></p>`;
+      root.innerHTML = (q.get('error') ? `<div class="msg error">${esc(q.get('error'))}</div>` : '') + (q.get('verified') ? '<div class="msg ok">Thanks, your PayPal account is confirmed.</div>' : '') + body + `<p class="who">Claim ${esc(c.id)}</p>`;
+    }
+    if (q.get('id')) show(q.get('id'));
+  </script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CleanClaim · settlement review</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/vendor/ag-grid-community.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">CleanClaim</span>
+    <span class="case"><strong id="caseName">Loading case…</strong> <span id="docket"></span></span>
+    <span class="modes"><span id="modePaypal">PayPal</span><span id="modeAi">AI</span></span>
+  </header>
+
+  <main>
+    <section class="check" aria-label="Payment per eligible class member">
+      <div>
+        <div class="payto">Pay to the order of <b>each eligible class member</b></div>
+        <div class="amount" aria-live="polite">
+          <span class="was" id="was" title="If every filed claim were paid"></span>
+          <span class="now" id="now">$0.00</span>
+          <span class="per">each, after review</span>
+        </div>
+      </div>
+      <div class="signature"><span class="line">approved by a person</span>Settlement administrator</div>
+      <div class="memo">
+        <span>Fund <b id="fund"></b></span>
+        <span>Claims filed <b id="filed"></b></span>
+        <span>Eligible now <b id="eligible"></b></span>
+        <span>Held for review <b id="held"></b></span>
+        <span>Paid <b id="paid"></b></span>
+      </div>
+    </section>
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" aria-controls="p-queue" id="t-queue">Review queue</button>
+      <button role="tab" aria-selected="false" aria-controls="p-payout" id="t-payout">Pay class members</button>
+      <button role="tab" aria-selected="false" aria-controls="p-accuracy" id="t-accuracy">How accurate is this?</button>
+      <button role="tab" aria-selected="false" aria-controls="p-activity" id="t-activity">Activity</button>
+    </nav>
+
+    <section role="tabpanel" id="p-queue" aria-labelledby="t-queue">
+      <div class="filters" role="group" aria-label="Show claims">
+        <button class="chip" data-f="review" aria-pressed="true">Needs a person <span id="c-review"></span></button>
+        <button class="chip" data-f="held" aria-pressed="false">Held <span id="c-held"></span></button>
+        <button class="chip" data-f="clear" aria-pressed="false">Cleared <span id="c-clear"></span></button>
+        <button class="chip" data-f="" aria-pressed="false">All</button>
+        <button class="btn" id="aiBand" style="margin-left:auto">Get AI second opinion on 20</button>
+      </div>
+      <div class="queue">
+        <div id="grid"></div>
+        <aside class="detail" id="detail" aria-live="polite"><p class="empty">Pick a claim to see why it was flagged and decide.</p></aside>
+      </div>
+    </section>
+
+    <section role="tabpanel" id="p-payout" aria-labelledby="t-payout" hidden>
+      <div class="payout">
+        <div>
+          <h2>Pay eligible class members</h2>
+          <p>Only cleared claims and claims a person approved are paid. Held claims and claims nobody has decided are left out until someone reviews them. Each payment goes out through PayPal Payouts; a repeated batch is rejected, so nobody is paid twice.</p>
+          <p id="payInfo"></p>
+          <div class="confirm">
+            <label for="confirm" class="sr">Confirmation</label>
+            <input id="confirm" autocomplete="off" />
+            <button class="btn primary" id="payBtn">Send payments</button>
+          </div>
+          <div id="payMsg"></div>
+        </div>
+        <div>
+          <h2>Payment batches</h2>
+          <div id="batches"><p class="empty">No payments sent yet.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section role="tabpanel" id="p-accuracy" aria-labelledby="t-accuracy" hidden>
+      <p class="note">These claims are synthetic, so each one carries a hidden label saying whether it is real. This page compares the review against those labels. "Held" counts as flagged; claims waiting for a person are counted separately.</p>
+      <div class="scores" id="scores"></div>
+      <table class="matrix" id="matrix"></table>
+    </section>
+
+    <section role="tabpanel" id="p-activity" aria-labelledby="t-activity" hidden>
+      <ul class="activity" id="activity"></ul>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

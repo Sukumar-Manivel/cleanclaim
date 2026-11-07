@@ -1,0 +1,20 @@
+{
+  "name": "cleanclaim",
+  "version": "1.0.0",
+  "description": "AI review and PayPal payouts for class action settlements",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "ag-grid-community": "^34.3.1",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0"
+  },
+  "type": "module"
+}
