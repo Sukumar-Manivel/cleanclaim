@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateClaims } from './generate.js';
 import { review, metrics, SIGNALS } from './detect.js';
-import { secondOpinion, explainForClaimant, aiEnabled } from './ai.js';
+import { secondOpinion, explainForClaimant, aiEnabled, aiProvider } from './ai.js';
 import { createPayoutBatch, getPayoutBatch, paypalMode } from './paypal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,7 +56,7 @@ app.get('/api/summary', (req, res) => {
     shareIfPaidToAll: cents(settlement.fund / claims.length),
     shareAfterReview: cents(settlement.fund / Math.max(1, payCount)),
     metrics: metrics(claims), signals: SIGNALS,
-    modes: { paypal: paypalMode(), ai: aiEnabled() ? 'claude' : 'rules only', demoPayoutLimit: DEMO_LIMIT },
+    modes: { paypal: paypalMode(), ai: aiProvider() || 'rules only', demoPayoutLimit: DEMO_LIMIT },
     batches, audit: audit.slice(0, 30),
   });
 });
@@ -200,4 +200,4 @@ app.get('/auth/paypal/callback', async (req, res) => {
 
 app.post('/api/reset', (req, res) => { load(); res.json({ ok: true }); });
 
-app.listen(PORT, () => console.log(`CleanClaim running at ${PUBLIC_URL} (PayPal: ${paypalMode()}, AI: ${aiEnabled() ? 'Claude' : 'rules only'})`));
+app.listen(PORT, () => console.log(`CleanClaim running at ${PUBLIC_URL} (PayPal: ${paypalMode()}, AI: ${aiProvider() || 'rules only'})`));
