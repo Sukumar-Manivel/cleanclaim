@@ -18,7 +18,9 @@ are often messy, share networks (dorms, families) and lack receipts. Wrongly
 rejecting a real class member is a serious harm. Be specific and plain-spoken.`;
 
 function fallbackOpinion(c) {
-  const strong = c.signals.filter((s) => ['device', 'identity', 'agent'].includes(s));
+  // A story copied by hundreds of other claims is a strong sign on its own.
+  const copies = Number((c.reasons[c.signals.indexOf('template')] || '').match(/matches (\d+)/)?.[1] || 0);
+  const strong = c.signals.filter((s) => ['device', 'identity', 'agent'].includes(s) || (s === 'template' && copies >= 200));
   const rec = strong.length ? 'hold' : 'approve';
   const why = strong.length
     ? `Signals tied to identity or automation are present: ${c.reasons[c.signals.indexOf(strong[0])]}`

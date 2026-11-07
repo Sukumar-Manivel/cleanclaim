@@ -57,7 +57,7 @@ function makeGrid() {
       { field: 'id', headerName: 'Claim', width: 105 },
       { field: 'name', headerName: 'Claimant', flex: 1, minWidth: 140 },
       { field: 'status', headerName: 'Review', width: 165, cellRenderer: statusCell },
-      { field: 'score', headerName: 'Risk', width: 95, sort: 'desc' },
+      { field: 'score', headerName: 'Risk', width: 110, sort: 'desc' },
       { field: 'signals', headerName: 'Why', flex: 2, minWidth: 200, valueFormatter: (p) => (p.value || []).map((k) => summary.signals[k].label).join(', ') },
       { field: 'filer', headerName: 'Filed by', width: 170 },
       { field: 'decision', headerName: 'Decision', width: 110, cellRenderer: decisionCell },
