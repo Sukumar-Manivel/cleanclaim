@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { generateClaims } from './generate.js';
 import { review, metrics, SIGNALS } from './detect.js';
@@ -30,8 +31,16 @@ const batches = [];
 const audit = [];
 const log = (action, detail) => audit.unshift({ at: new Date().toISOString(), action, detail });
 
+// AI answers are saved to disk so a demo never spends API quota twice on the same claim.
+const CACHE = path.join(__dirname, '..', 'data', 'ai-cache.json');
+let aiCache = {};
+try { aiCache = JSON.parse(fs.readFileSync(CACHE, 'utf8')); } catch { aiCache = {}; }
+const saveCache = () => { fs.mkdirSync(path.dirname(CACHE), { recursive: true }); fs.writeFileSync(CACHE, JSON.stringify(aiCache, null, 1)); };
+const remember = (c) => { if (c.opinion && !c.opinion.note && c.opinion.source !== 'rules') { aiCache[c.id] = { ...(aiCache[c.id] || {}), opinion: c.opinion }; saveCache(); } };
+
 function load() {
   claims = review(generateClaims());
+  for (const c of claims) { if (aiCache[c.id]?.opinion) c.opinion = aiCache[c.id].opinion; if (aiCache[c.id]?.letter) c.letter = aiCache[c.id].letter; }
   byId.clear(); claims.forEach((c) => byId.set(c.id, c));
   batches.length = 0; audit.length = 0;
   log('dataset', `${claims.length.toLocaleString()} claims loaded and screened`);
@@ -80,7 +89,8 @@ app.get('/api/claims/:id', (req, res) => {
 
 app.post('/api/claims/:id/opinion', async (req, res) => {
   const c = byId.get(req.params.id); if (!c) return res.status(404).json({ error: 'No claim with that ID' });
-  try { c.opinion = await secondOpinion(c); res.json(c.opinion); }
+  if (c.opinion && c.opinion.source !== 'rules' && !c.opinion.note && !req.query.fresh) return res.json(c.opinion);
+  try { c.opinion = await secondOpinion(c); remember(c); res.json(c.opinion); }
   catch (e) { res.status(502).json({ error: `AI review failed: ${e.message}` }); }
 });
 
@@ -95,9 +105,9 @@ app.post('/api/claims/:id/decision', (req, res) => {
 
 // AI second opinion for the whole "needs review" band (capped to keep API cost small).
 app.post('/api/review-band/opinions', async (req, res) => {
-  const limit = Math.min(Number(req.body.limit || 20), 100);
+  const limit = Math.min(Number(req.body.limit || 5), 50);
   const band = claims.filter((c) => c.status === 'review' && !c.opinion).slice(0, limit);
-  for (const c of band) { try { c.opinion = await secondOpinion(c); } catch (e) { c.opinion = { error: e.message }; } }
+  for (const c of band) { try { c.opinion = await secondOpinion(c); remember(c); } catch (e) { c.opinion = { error: e.message }; } }
   log('ai-review', `AI second opinion on ${band.length} claims`);
   res.json({ reviewed: band.length });
 });
@@ -155,7 +165,11 @@ app.post('/webhooks/paypal', (req, res) => {
 // ---- Claimant side -------------------------------------------------------
 app.get('/api/claimant/:id', async (req, res) => {
   const c = byId.get(req.params.id); if (!c) return res.status(404).json({ error: 'We could not find that claim ID. Check the ID in your claim confirmation email.' });
-  const letter = c.status === 'clear' ? null : (c.letter ||= await explainForClaimant(c).catch(() => null));
+  let letter = null;
+  if (c.status !== 'clear') {
+    if (!c.letter) { c.letter = await explainForClaimant(c).catch(() => null); if (c.letter?.source && c.letter.source !== 'rules') { aiCache[c.id] = { ...(aiCache[c.id] || {}), letter: c.letter }; saveCache(); } }
+    letter = c.letter;
+  }
   res.json({ id: c.id, firstName: c.name.split(' ')[0], status: c.status, decision: c.decision, verified: c.verified || null, payout: c.payout || null, letter, share: cents(settlement.fund / Math.max(1, claims.filter(payable).length)) });
 });
 

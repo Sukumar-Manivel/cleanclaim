@@ -9,6 +9,9 @@
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+// Free-tier keys have small per-model daily limits; on 429/404 we try the next model.
+const GEMINI_MODELS = [GEMINI_MODEL, ...(process.env.GEMINI_FALLBACK_MODELS || 'gemini-flash-lite-latest,gemini-flash-latest').split(',').map((m) => m.trim()).filter(Boolean)];
+const TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 15000);
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5-5';
 
@@ -20,26 +23,43 @@ You review claims for a consumer settlement (a skin serum sold in US stores).
 You never decide on your own; you recommend, and a human administrator decides.
 Fraud is common (bot rings, AI agents filing in bulk, duplicates), but real people
 are often messy, share networks (dorms, families) and lack receipts. Wrongly
-rejecting a real class member is a serious harm. Be specific and plain-spoken.`;
+rejecting a real class member is a serious harm. Be specific and plain-spoken.
 
+What is normal for honest claimants in this case:
+- Short, generic stories ("bought it, used it, did not work") are written by many real people; a story
+  matching fewer than about 100 others is not evidence of fraud by itself. Hundreds or thousands of
+  near-identical stories point to a script.
+- A shared network with claims minutes apart can be a campus or workplace where an email about the
+  settlement went out. Weigh it with first-hand detail in the claimant's own words.
+- Reused devices, the same name and address on many claims, and bulk filing by an automated agent
+  are much stronger signs than network or wording alone.
+Recommend "hold" only when the evidence would convince a fair reviewer; otherwise "approve".`;
+
+let lastModel = null;
 async function ask(prompt, { json = false, maxTokens = 400 } = {}) {
   if (GEMINI_KEY) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM }] },
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: maxTokens, temperature: 0.2, ...(json ? { responseMimeType: 'application/json' } : {}), thinkingConfig: { thinkingBudget: 0 } },
-      }),
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error?.message || `Gemini error ${r.status}`);
-    return j.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
+    let lastErr;
+    for (const model of GEMINI_MODELS) {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST', signal: AbortSignal.timeout(TIMEOUT_MS),
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM }] },
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: maxTokens, temperature: 0.2, ...(json ? { responseMimeType: 'application/json' } : {}) },
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) { lastModel = model; return j.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || ''; }
+      lastErr = new Error(r.status === 429 ? `Gemini daily limit reached for ${model}` : (j.error?.message || `Gemini error ${r.status}`));
+      if (![429, 404].includes(r.status)) break;
+    }
+    throw lastErr;
   }
   if (ANTHROPIC_KEY) {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: maxTokens, system: SYSTEM, messages: [{ role: 'user', content: prompt }] }),
     });
@@ -63,7 +83,9 @@ function fallbackOpinion(c) {
 
 export async function secondOpinion(c) {
   if (!aiEnabled()) return fallbackOpinion(c);
-  const text = await ask(
+  let text;
+  try {
+    text = await ask(
 `Claim ${c.id}
 Claimant's own words: "${c.narrative}"
 Units claimed: ${c.units}, proof of purchase: ${c.proof ? 'yes' : 'no'}, filed by: ${c.filer}
@@ -71,10 +93,13 @@ Automated signals (score ${c.score}/100):
 ${c.reasons.map((r) => '- ' + r).join('\n') || '- none'}
 
 Reply with JSON only: {"recommendation":"approve"|"hold","confidence":0-1,"reason":"one or two plain sentences"}`, { json: true, maxTokens: 300 });
+  } catch (e) {
+    return { ...fallbackOpinion(c), note: `AI unavailable (${e.name === 'TimeoutError' ? 'timed out' : e.message}); rule-based opinion shown` };
+  }
   try {
     const j = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
     if (!['approve', 'hold'].includes(j.recommendation)) throw new Error('bad shape');
-    return { ...j, source: aiProvider() };
+    return { ...j, source: GEMINI_KEY ? `Gemini (${lastModel})` : aiProvider() };
   } catch {
     return { ...fallbackOpinion(c), note: 'AI reply could not be read; rule-based opinion shown' };
   }

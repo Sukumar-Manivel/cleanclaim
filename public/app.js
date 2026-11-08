@@ -106,13 +106,13 @@ async function showDetail(id) {
   }));
 }
 const opinionHtml = (o) => o.error ? `<div class="msg error">${esc(o.error)}</div>` :
-  `<b>AI suggests: ${o.recommendation === 'approve' ? 'approve' : 'keep on hold'}</b> (${Math.round((o.confidence || 0) * 100)}% sure)<br>${esc(o.reason)}<br><small>Source: ${esc(o.source)}. A person makes the final call.</small>`;
+  `<b>AI suggests: ${o.recommendation === 'approve' ? 'approve' : 'keep on hold'}</b> (${Math.round((o.confidence || 0) * 100)}% sure)<br>${esc(o.reason)}<br><small>Source: ${esc(o.source)}. A person makes the final call.${o.note ? '<br>' + esc(o.note) : ''}</small>`;
 
 $('#aiBand').addEventListener('click', async (e) => {
   e.target.disabled = true; e.target.textContent = 'Reviewing…';
-  try { const r = await api('/api/review-band/opinions', { method: 'POST', body: JSON.stringify({ limit: 20 }) }); e.target.textContent = `AI reviewed ${r.reviewed}`; loadRows(); loadSummary(); }
+  try { const r = await api('/api/review-band/opinions', { method: 'POST', body: JSON.stringify({ limit: 5 }) }); e.target.textContent = `AI reviewed ${r.reviewed}`; loadRows(); loadSummary(); }
   catch (err) { e.target.textContent = 'AI review failed'; }
-  setTimeout(() => { e.target.disabled = false; e.target.textContent = 'Get AI second opinion on 20'; }, 2500);
+  setTimeout(() => { e.target.disabled = false; e.target.textContent = 'Get AI second opinion on 5'; }, 2500);
 });
 
 // ---- Payouts --------------------------------------------------------------
