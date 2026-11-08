@@ -66,3 +66,16 @@ export async function getPayoutBatch(id) {
   }
   return api(`/v1/payments/payouts/${id}`);
 }
+
+// Ask PayPal whether a webhook event really came from PayPal.
+export async function verifyWebhook(headers, event, webhookId) {
+  const j = await api('/v1/notifications/verify-webhook-signature', {
+    method: 'POST',
+    body: JSON.stringify({
+      auth_algo: headers['paypal-auth-algo'], cert_url: headers['paypal-cert-url'],
+      transmission_id: headers['paypal-transmission-id'], transmission_sig: headers['paypal-transmission-sig'],
+      transmission_time: headers['paypal-transmission-time'], webhook_id: webhookId, webhook_event: event,
+    }),
+  });
+  return j.verification_status === 'SUCCESS';
+}

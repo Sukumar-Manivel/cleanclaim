@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { generateClaims } from './generate.js';
 import { review, metrics, SIGNALS } from './detect.js';
 import { secondOpinion, explainForClaimant, aiEnabled, aiProvider } from './ai.js';
-import { createPayoutBatch, getPayoutBatch, paypalMode } from './paypal.js';
+import { createPayoutBatch, getPayoutBatch, paypalMode, verifyWebhook } from './paypal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -151,9 +151,13 @@ app.get('/api/payouts/:id', async (req, res) => {
 });
 
 // PayPal webhooks (PAYMENT.PAYOUTSBATCH.*, PAYMENT.PAYOUTS-ITEM.*).
-// TODO before production: verify the signature with /v1/notifications/verify-webhook-signature.
-app.post('/webhooks/paypal', (req, res) => {
+// When PAYPAL_WEBHOOK_ID is set, every event is verified with PayPal before it changes anything.
+app.post('/webhooks/paypal', async (req, res) => {
   const e = req.body || {};
+  if (process.env.PAYPAL_WEBHOOK_ID && paypalMode() !== 'mock') {
+    const ok = await verifyWebhook(req.headers, e, process.env.PAYPAL_WEBHOOK_ID).catch(() => false);
+    if (!ok) { log('webhook-rejected', `Unverified ${e.event_type || 'event'} ignored`); return res.sendStatus(400); }
+  }
   const r = e.resource || {};
   const claimId = r.payout_item?.sender_item_id;
   const c = claimId && byId.get(claimId);

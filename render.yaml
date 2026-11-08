@@ -1,0 +1,30 @@
+# One-click deploy on Render (Blueprint). Secrets are entered in the Render dashboard, not here.
+services:
+  - type: web
+    name: cleanclaim
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/summary
+    envVars:
+      - key: PAYPAL_BASE_URL
+        value: https://api-m.sandbox.paypal.com
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: DEMO_RECEIVER_EMAIL
+        sync: false
+      - key: DEMO_PAYOUT_LIMIT
+        value: "5"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: LOGIN_WITH_PAYPAL
+        value: "1"
+      - key: PUBLIC_URL
+        sync: false
