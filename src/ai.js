@@ -5,18 +5,26 @@
 // The AI only recommends. A person makes every final decision, and nothing is paid
 // until a person approves the payout batch.
 //
-// Provider: Gemini (GEMINI_API_KEY) or Claude (ANTHROPIC_API_KEY). Without a key, rules only.
+// Providers are tried in order (AI_ORDER). If one is out of quota, slow or down, the next one
+// answers. If all fail, rule-based text is used, so the app never stops working.
+//   gemini      GEMINI_API_KEY      (several Gemini models, each with its own daily limit)
+//   groq        GROQ_API_KEY        (free tier, very fast; OpenAI-compatible API)
+//   openrouter  OPENROUTER_API_KEY  (free models available; OpenAI-compatible API)
+//   anthropic   ANTHROPIC_API_KEY
+const env = process.env;
+const TIMEOUT_MS = Number(env.AI_TIMEOUT_MS || 15000);
+const list = (v, d) => (v || d).split(',').map((x) => x.trim()).filter(Boolean);
 
-const GEMINI_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-// Free-tier keys have small per-model daily limits; on 429/404 we try the next model.
-const GEMINI_MODELS = [GEMINI_MODEL, ...(process.env.GEMINI_FALLBACK_MODELS || 'gemini-flash-lite-latest,gemini-flash-latest').split(',').map((m) => m.trim()).filter(Boolean)];
-const TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 15000);
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5-5';
+const PROVIDERS = {
+  gemini: { key: env.GEMINI_API_KEY, label: 'Gemini', models: list(env.GEMINI_MODELS, [env.GEMINI_MODEL || 'gemini-3.8-flash', 'gemini-flash-lite-latest', 'gemini-flash-latest'].join(',')) },
+  groq: { key: env.GROQ_API_KEY, label: 'Groq', models: list(env.GROQ_MODELS, 'llama-3.3-70b-versatile,llama-3.1-8b-instant'), url: 'https://api.groq.com/openai/v1/chat/completions' },
+  openrouter: { key: env.OPENROUTER_API_KEY, label: 'OpenRouter', models: list(env.OPENROUTER_MODELS, 'meta-llama/llama-3.3-70b-instruct:free'), url: 'https://openrouter.ai/api/v1/chat/completions' },
+  anthropic: { key: env.ANTHROPIC_API_KEY, label: 'Claude', models: list(env.CLAUDE_MODELS, env.CLAUDE_MODEL || 'claude-sonnet-5-5') },
+};
+const ORDER = list(env.AI_ORDER, 'gemini,groq,openrouter,anthropic').filter((p) => PROVIDERS[p]?.key);
 
-export const aiProvider = () => (GEMINI_KEY ? `Gemini (${GEMINI_MODEL})` : ANTHROPIC_KEY ? `Claude (${CLAUDE_MODEL})` : null);
-export const aiEnabled = () => !!aiProvider();
+export const aiProvider = () => (ORDER.length ? ORDER.map((p) => PROVIDERS[p].label).join(' → ') : null);
+export const aiEnabled = () => ORDER.length > 0;
 
 const SYSTEM = `You assist a court-appointed class action settlement administrator.
 You review claims for a consumer settlement (a skin serum sold in US stores).
@@ -35,39 +43,60 @@ What is normal for honest claimants in this case:
   are much stronger signs than network or wording alone.
 Recommend "hold" only when the evidence would convince a fair reviewer; otherwise "approve".`;
 
-let lastModel = null;
-async function ask(prompt, { json = false, maxTokens = 400 } = {}) {
-  if (GEMINI_KEY) {
-    let lastErr;
-    for (const model of GEMINI_MODELS) {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: 'POST', signal: AbortSignal.timeout(TIMEOUT_MS),
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM }] },
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: maxTokens, temperature: 0.2, ...(json ? { responseMimeType: 'application/json' } : {}) },
-        }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (r.ok) { lastModel = model; return j.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || ''; }
-      lastErr = new Error(r.status === 429 ? `Gemini daily limit reached for ${model}` : (j.error?.message || `Gemini error ${r.status}`));
-      if (![429, 404].includes(r.status)) break;
-    }
-    throw lastErr;
-  }
-  if (ANTHROPIC_KEY) {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: maxTokens, system: SYSTEM, messages: [{ role: 'user', content: prompt }] }),
+let lastSource = null;
+
+async function callOnce(provider, model, prompt, json, maxTokens) {
+  const p = PROVIDERS[provider];
+  const signal = AbortSignal.timeout(TIMEOUT_MS);
+  let r, j, text;
+  if (provider === 'gemini') {
+    r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': p.key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM }] },
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: maxTokens, temperature: 0.2, ...(json ? { responseMimeType: 'application/json' } : {}) },
+      }),
     });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error?.message || `Claude error ${r.status}`);
-    return j.content?.find((b) => b.type === 'text')?.text || '';
+    j = await r.json().catch(() => ({}));
+    text = j.candidates?.[0]?.content?.parts?.map((x) => x.text).join('');
+  } else if (provider === 'anthropic') {
+    r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'x-api-key': p.key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model, max_tokens: maxTokens, system: SYSTEM, messages: [{ role: 'user', content: prompt }] }),
+    });
+    j = await r.json().catch(() => ({}));
+    text = j.content?.find((b) => b.type === 'text')?.text;
+  } else { // OpenAI-compatible (Groq, OpenRouter)
+    r = await fetch(p.url, {
+      method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${p.key}` },
+      body: JSON.stringify({
+        model, max_tokens: maxTokens, temperature: 0.2, ...(json ? { response_format: { type: 'json_object' } } : {}),
+        messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: prompt }],
+      }),
+    });
+    j = await r.json().catch(() => ({}));
+    text = j.choices?.[0]?.message?.content;
   }
-  throw new Error('No AI key set');
+  if (!r.ok || !text) throw new Error(`${p.label} ${model}: ${r.status === 429 ? 'limit reached' : (j.error?.message || `error ${r.status}`)}`);
+  return text;
+}
+
+// Try every provider and model in order until one answers.
+async function ask(prompt, { json = false, maxTokens = 400 } = {}) {
+  const errors = [];
+  for (const provider of ORDER) {
+    for (const model of PROVIDERS[provider].models) {
+      try {
+        const text = await callOnce(provider, model, prompt, json, maxTokens);
+        lastSource = `${PROVIDERS[provider].label} (${model})`;
+        return text;
+      } catch (e) {
+        errors.push(e.name === 'TimeoutError' ? `${PROVIDERS[provider].label} ${model}: timed out` : e.message);
+      }
+    }
+  }
+  throw new Error(errors.join('; ') || 'No AI key set');
 }
 
 function fallbackOpinion(c) {
@@ -94,12 +123,12 @@ ${c.reasons.map((r) => '- ' + r).join('\n') || '- none'}
 
 Reply with JSON only: {"recommendation":"approve"|"hold","confidence":0-1,"reason":"one or two plain sentences"}`, { json: true, maxTokens: 300 });
   } catch (e) {
-    return { ...fallbackOpinion(c), note: `AI unavailable (${e.name === 'TimeoutError' ? 'timed out' : e.message}); rule-based opinion shown` };
+    return { ...fallbackOpinion(c), note: `All AI providers were busy or out of quota, so the rule-based opinion is shown. Details: ${e.message.slice(0, 200)}` };
   }
   try {
     const j = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
     if (!['approve', 'hold'].includes(j.recommendation)) throw new Error('bad shape');
-    return { ...j, source: GEMINI_KEY ? `Gemini (${lastModel})` : aiProvider() };
+    return { ...j, source: lastSource };
   } catch {
     return { ...fallbackOpinion(c), note: 'AI reply could not be read; rule-based opinion shown' };
   }
@@ -116,7 +145,7 @@ export async function explainForClaimant(c) {
 based only on these findings, and telling them they can confirm their identity with their PayPal account
 to have it reviewed and paid. No legal advice, no accusations, plain text, no markdown.
 Findings:\n${c.reasons.map((r) => '- ' + r).join('\n')}`, { maxTokens: 250 });
-    return { text: text.trim() || base, source: aiProvider() };
+    return { text: text.trim() || base, source: lastSource };
   } catch {
     return { text: base, source: 'rules' };
   }

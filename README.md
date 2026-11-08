@@ -28,9 +28,9 @@ Tested in the PayPal sandbox: a $1 payout between US sandbox accounts returned `
 ## How AI is used
 
 - Rule signals score each claim and write the plain-English reasons.
-- Claude reviews the "needs a person" band: it reads the claimant's own words with the signals and recommends approve or hold with a reason (`src/ai.js`).
-- Claude writes the respectful hold notice the claimant sees.
-- Without an API key, the app falls back to rule-based text so it always runs.
+- An AI model reviews the "needs a person" band: it reads the claimant's own words with the signals and recommends approve or hold with a reason (`src/ai.js`).
+- The AI writes the respectful hold notice the claimant sees.
+- Providers are tried in order: Gemini (3 models) → Groq → OpenRouter → Claude. If one is out of quota or slow (15 s limit), the next answers; if all fail, rule-based text is shown. Answers are cached so the demo never spends quota twice.
 
 ## Accuracy (synthetic data)
 
@@ -58,7 +58,7 @@ Without PayPal keys the app runs in **mock mode** (fake batch IDs, no network).
 
 ## Built with
 
-Node.js, Express, AG Grid Community, PayPal Payouts API, Log in with PayPal, Anthropic Claude API.
+Node.js, Express, AG Grid Community, PayPal Payouts API, Log in with PayPal, Google Gemini API, Groq, OpenRouter, Anthropic Claude API (fallback chain).
 
 ## License
 
