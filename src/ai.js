@@ -9,6 +9,7 @@
 // answers. If all fail, rule-based text is used, so the app never stops working.
 //   gemini      GEMINI_API_KEY      (several Gemini models, each with its own daily limit)
 //   groq        GROQ_API_KEY        (free tier, very fast; OpenAI-compatible API)
+//   github      GITHUB_TOKEN        (GitHub Models, free with a GitHub account; OpenAI-compatible API)
 //   openrouter  OPENROUTER_API_KEY  (free models available; OpenAI-compatible API)
 //   anthropic   ANTHROPIC_API_KEY
 const env = process.env;
@@ -18,10 +19,11 @@ const list = (v, d) => (v || d).split(',').map((x) => x.trim()).filter(Boolean);
 const PROVIDERS = {
   gemini: { key: env.GEMINI_API_KEY, label: 'Gemini', models: list(env.GEMINI_MODELS, [env.GEMINI_MODEL || 'gemini-3.8-flash', 'gemini-flash-lite-latest', 'gemini-flash-latest'].join(',')) },
   groq: { key: env.GROQ_API_KEY, label: 'Groq', models: list(env.GROQ_MODELS, 'llama-3.3-70b-versatile,llama-3.1-8b-instant'), url: 'https://api.groq.com/openai/v1/chat/completions' },
+  github: { key: env.GITHUB_TOKEN, label: 'GitHub Models', models: list(env.GITHUB_MODELS, 'openai/gpt-4.1-mini,meta/Llama-3.3-70B-Instruct'), url: 'https://models.github.ai/inference/chat/completions' },
   openrouter: { key: env.OPENROUTER_API_KEY, label: 'OpenRouter', models: list(env.OPENROUTER_MODELS, 'meta-llama/llama-3.3-70b-instruct:free'), url: 'https://openrouter.ai/api/v1/chat/completions' },
   anthropic: { key: env.ANTHROPIC_API_KEY, label: 'Claude', models: list(env.CLAUDE_MODELS, env.CLAUDE_MODEL || 'claude-sonnet-5-5') },
 };
-const ORDER = list(env.AI_ORDER, 'gemini,groq,openrouter,anthropic').filter((p) => PROVIDERS[p]?.key);
+const ORDER = list(env.AI_ORDER, 'gemini,github,groq,openrouter,anthropic').filter((p) => PROVIDERS[p]?.key);
 
 export const aiProvider = () => (ORDER.length ? ORDER.map((p) => PROVIDERS[p].label).join(' → ') : null);
 export const aiEnabled = () => ORDER.length > 0;
@@ -67,7 +69,7 @@ async function callOnce(provider, model, prompt, json, maxTokens) {
     });
     j = await r.json().catch(() => ({}));
     text = j.content?.find((b) => b.type === 'text')?.text;
-  } else { // OpenAI-compatible (Groq, OpenRouter)
+  } else { // OpenAI-compatible (GitHub Models, Groq, OpenRouter)
     r = await fetch(p.url, {
       method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${p.key}` },
       body: JSON.stringify({
