@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/vendor', express.static(path.join(__dirname, '..', 'node_modules', 'ag-grid-community', 'dist')));
 
 const PORT = process.env.PORT || 3000;
-const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
+const PUBLIC_URL = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 const DEMO_LIMIT = Number(process.env.DEMO_PAYOUT_LIMIT || 5);
 const DEMO_RECEIVER = process.env.DEMO_RECEIVER_EMAIL || '';
 

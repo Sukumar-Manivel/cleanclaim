@@ -26,5 +26,3 @@ services:
         sync: false
       - key: LOGIN_WITH_PAYPAL
         value: "1"
-      - key: PUBLIC_URL
-        sync: false
