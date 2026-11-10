@@ -25,4 +25,4 @@ services:
       - key: GITHUB_TOKEN
         sync: false
       - key: LOGIN_WITH_PAYPAL
-        value: "1"
+        value: "0"
