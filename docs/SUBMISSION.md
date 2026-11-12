@@ -56,7 +56,7 @@ nodejs, express, paypal-payouts-api, log-in-with-paypal, paypal-webhooks, gemini
 ## Links to fill in
 - Repo: https://github.com/Sukumar-Manivel/cleanclaim
 - Live demo: https://cleanclaim.onrender.com
-- Video: (YouTube URL, public)
+- Video: https://youtu.be/dnz8lM32VeE
 
 ---
 
